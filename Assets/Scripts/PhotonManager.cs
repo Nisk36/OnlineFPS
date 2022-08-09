@@ -19,6 +19,7 @@ public class PhotonManager : MonoBehaviourPunCallbacks
 
     public GameObject roomPanel;
     public Text roomName;
+    public GameObject startButton;
 
     public GameObject errorPanel;
     public Text errorText;
@@ -36,6 +37,14 @@ public class PhotonManager : MonoBehaviourPunCallbacks
     private List<Text> allPlayerNames = new List<Text>();
 
     public GameObject playerNameContent;
+
+    public GameObject nameInputPanel;
+    public Text placeholderText;
+    public InputField nameInput;
+    private bool setName;
+
+
+    public string playLevel;
 
     private void Awake()
     {
@@ -74,6 +83,8 @@ public class PhotonManager : MonoBehaviourPunCallbacks
         errorPanel.SetActive(false);
 
         roomListPanel.SetActive(false);
+
+        nameInputPanel.SetActive(false);
     }
 
     public void DisplayLobbyUI()
@@ -82,12 +93,16 @@ public class PhotonManager : MonoBehaviourPunCallbacks
         buttons.SetActive(true);
     }
 
+    //マスターサーバーに接続されたときに呼ばれる関数
     public override void OnConnectedToMaster()
     {
         Debug.Log("マスターに接続");
         //ロビーに接続
         PhotonNetwork.JoinLobby();
         loadingText.text = "ロビーに接続中";
+
+        //Master Clientと同じレベルをロード
+        PhotonNetwork.AutomaticallySyncScene = true;
     }
 
     //ロビー接続時に呼ばれる関数
@@ -98,6 +113,8 @@ public class PhotonManager : MonoBehaviourPunCallbacks
         roomsDic.Clear();
 
         PhotonNetwork.NickName = "Player" + Random.RandomRange(0, 1000).ToString();
+
+        ConfirmationName();
     }
 
     public void DisplayCreateRoomUI()
@@ -136,6 +153,9 @@ public class PhotonManager : MonoBehaviourPunCallbacks
         roomName.text = PhotonNetwork.CurrentRoom.Name;//参加しているルームの名前取得
 
         GetAllPlayers();
+
+        //ルームマスターかどうか判定してボタン表示
+        CheckRoomMaster();
 
     }
 
@@ -265,4 +285,79 @@ public class PhotonManager : MonoBehaviourPunCallbacks
         allPlayerNames.Add(newPlayerText);
     }
 
+
+    public void ConfirmationName()
+    {
+        if (!setName)//起動時false
+        {
+            CloseMenuUI();
+            nameInputPanel.SetActive(true);
+
+            if (PlayerPrefs.HasKey("playerName"))//過去のプレイで保存済みだったら(playerNameはPlayerPrefsのKey)
+            {
+                placeholderText.text = PlayerPrefs.GetString("playerName");
+                nameInput.text = PlayerPrefs.GetString("playerName");
+            }
+        }
+        else//ルームに入って抜けた時とかに再度入力防ぐ
+        {
+            PhotonNetwork.NickName = PlayerPrefs.GetString("playerName");
+        }
+    }
+
+    //名前登録
+    public void SetName()
+    {
+        if (!string.IsNullOrEmpty(nameInput.text))
+        {
+            //ユーザ名登録
+            PhotonNetwork.NickName = nameInput.text;
+
+            //保存
+            PlayerPrefs.SetString("playerName", nameInput.text);
+
+            DisplayLobbyUI();
+
+            setName = true;
+        }
+    }
+
+    //プレイヤーがルームに入った時(override)
+    public override void OnPlayerEnteredRoom(Player newPlayer)
+    {
+        GeneratePlayerText(newPlayer);
+    }
+
+    //プレイヤーがルームを離れるか、非アクティブになった時(overide)
+    public override void OnPlayerLeftRoom(Player otherPlayer)
+    {
+        GetAllPlayers();
+    }
+
+    public void CheckRoomMaster()
+    {
+        if (PhotonNetwork.IsMasterClient)
+        {
+            startButton.SetActive(true);
+        }
+        else
+        {
+            startButton.SetActive(false);
+        }
+    }
+
+    //マスターが切り替わった時(override)
+    public override void OnMasterClientSwitched(Player newMasterClient)
+    {
+        if (PhotonNetwork.IsMasterClient)
+        {
+            startButton.SetActive(true);
+        }
+    }
+
+    //遷移関数
+    public void PlayGame()
+    {
+        PhotonNetwork.LoadLevel(playLevel);
+    }
 }
